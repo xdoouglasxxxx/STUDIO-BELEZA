@@ -1,4 +1,4 @@
-﻿const withPWA = require("next-pwa").default({
+const withPWA = require("next-pwa")({
   dest: "public",
   register: true,
   skipWaiting: true,
@@ -7,5 +7,7 @@
 
 module.exports = withPWA({
   reactStrictMode: true,
-  images: { domains: [process.env.NEXT_PUBLIC_SUPABASE_URL?.replace("https://", "") || "seu-projeto.supabase.co"] }
+  images: { 
+    domains: [process.env.NEXT_PUBLIC_SUPABASE_URL?.replace("https://", "") || "seu-projeto.supabase.co"] 
+  }
 })
