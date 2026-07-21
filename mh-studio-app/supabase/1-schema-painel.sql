@@ -1,4 +1,3 @@
-
 -- MH Studio - Supabase Schema
 -- Rode no SQL Editor do Supabase
 
@@ -74,7 +73,7 @@ insert into studios (name, slug) values ('Myleine Hofmann Manicure','myleine-hof
 
 -- Insert Services (from flyers)
 insert into services (studio_id, name, price, duration_minutes, category, description) 
-select s.id, svc.name, svc.price, svc.duration, svc.cat, svc.desc from studios s,
+select s.id, svc.name, svc.price, svc.duration, svc.cat, svc.descricao from studios s,
 (values
 ('Alongamento em Gel na Tips', 89.90, 120, 'alongamento', 'Muito mais resistente, dura semanas sem quebrar. Comprimento e formato personalizado.'),
 ('Manicure e Pedicure Tradicional', 60.00, 90, 'tradicional', 'Cuidado completo, esmaltação perfeita'),
@@ -84,7 +83,7 @@ select s.id, svc.name, svc.price, svc.duration, svc.cat, svc.desc from studios s
 ('Blindagem das Unhas', 55.00, 60, 'blindagem', 'Protege naturais contra quebras, ideal para unhas fracas'),
 ('Banho de Gel', 60.00, 60, 'banho', 'Acabamento leve e uniforme, prolonga esmaltação'),
 ('Alongamento F1', 110.00, 120, 'alongamento', 'Mais autoestima e segurança para suas mãos')
-) as svc(name,price,duration,cat,desc)
+) as svc(name,price,duration,cat,descricao)
 where s.slug='myleine-hofmann';
 
 -- RLS
