@@ -12,6 +12,7 @@ const menuItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Agenda", href: "/admin/agenda", icon: Calendar },
   { label: "Horários", href: "/admin/horarios", icon: Clock },
+  { label: "Perfil", href: "/admin/perfil", icon: User },
   { label: "Galeria", href: "/admin/galeria", icon: Images },
   { label: "Clientes", href: "/admin/clientes", icon: Users },
   { label: "Serviços", href: "/admin/servicos", icon: Sparkles },
