@@ -15,6 +15,21 @@ const statusColors: any = {
   "no-show": "bg-gray-200 text-gray-600",
 }
 
+// Mensagens prontas por status — a Myleine só toca e envia
+function mensagemWhats(app: any, dia: Date) {
+  const nome = (app.clients?.name || "").split(" ")[0]
+  const servico = app.services?.name || "seu horário"
+  const data = format(dia, "dd/MM")
+  const hora = app.start_time?.substring(0, 5)
+  const msgs: any = {
+    pendente: `Olá ${nome}! 💅 Recebi seu agendamento de *${servico}* para ${data} às ${hora}. Já vou confirmar seu horário, tá bom? ✨`,
+    confirmado: `Olá ${nome}! Seu horário de *${servico}* está *CONFIRMADO* para ${data} às ${hora} 💅✨ Qualquer imprevisto é só me avisar. Te espero!`,
+    pago: `${nome}, obrigada pela visita de hoje! 💛 Foi um prazer cuidar de você. Quando quiser agendar o retoque de *${servico}*, é só me chamar! 💅`,
+    cancelado: `Olá ${nome}, tudo bem? Sobre seu horário de *${servico}* do dia ${data} às ${hora}: infelizmente precisou ser cancelado. 🙏 Me chama aqui pra gente remarcar no melhor dia pra você! 💅`,
+  }
+  return msgs[app.status] || `Olá ${nome}! Sobre seu agendamento de *${servico}* (${data} às ${hora}):`
+}
+
 export default function AgendaPage() {
   const supabase = createClient()
   const [day, setDay] = useState(new Date())
@@ -42,6 +57,30 @@ export default function AgendaPage() {
     const { error } = await supabase.from("appointments").update({ status }).eq("id", id)
     if (!error) setApps((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)))
     setUpdating(null)
+  }
+
+  // Liberação antecipada: encerra o atendimento AGORA, liberando
+  // automaticamente os próximos horários no site
+  const liberarAgora = async (app: any) => {
+    setUpdating(app.id)
+    const agora = new Date()
+    const hhmmss = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}:00`
+    const { error } = await supabase.from("appointments").update({ end_time: hhmmss }).eq("id", app.id)
+    if (!error) setApps((prev) => prev.map((a) => (a.id === app.id ? { ...a, end_time: hhmmss } : a)))
+    setUpdating(null)
+  }
+
+  const agoraHHMM = () => {
+    const n = new Date()
+    return `${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`
+  }
+
+  const emAndamento = (app: any) => {
+    const hoje = format(new Date(), "yyyy-MM-dd")
+    if (dateStr !== hoje) return false
+    if (!["pendente", "confirmado", "pago"].includes(app.status)) return false
+    const n = agoraHHMM()
+    return app.start_time?.substring(0, 5) <= n && n < app.end_time?.substring(0, 5)
   }
 
   const receitaDia = apps
@@ -103,12 +142,12 @@ export default function AgendaPage() {
                     <p className="text-xs text-[#0A1F44]/60 truncate">{app.services?.name}</p>
                     {app.clients?.phone && (
                       <a
-                        href={`https://wa.me/${String(app.clients.phone).replace(/\D/g, "")}`}
+                        href={`https://wa.me/${String(app.clients.phone).replace(/\D/g, "")}?text=${encodeURIComponent(mensagemWhats(app, day))}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-xs text-[#C9A86C] hover:underline"
+                        className="text-xs text-[#128C4A] font-semibold hover:underline inline-flex items-center gap-1"
                       >
-                        WhatsApp da cliente
+                        💬 Enviar mensagem de {app.status === "pendente" ? "recebido" : app.status === "confirmado" ? "confirmação" : app.status === "pago" ? "agradecimento" : app.status === "cancelado" ? "cancelamento" : "contato"}
                       </a>
                     )}
                   </div>
@@ -142,6 +181,11 @@ export default function AgendaPage() {
                       <button onClick={() => setStatus(app.id, "cancelado")} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-white border border-red-200 text-red-600 hover:bg-red-50 inline-flex items-center gap-1">
                         <X className="w-3.5 h-3.5" /> Cancelar
                       </button>
+                      {emAndamento(app) && (
+                        <button onClick={() => liberarAgora(app)} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[#C9A86C] text-[#0A1F44] hover:bg-[#C9A86C]/80 inline-flex items-center gap-1">
+                          <Check className="w-3.5 h-3.5" /> Encerrar agora (libera a agenda)
+                        </button>
+                      )}
                     </>
                   )}
                 </div>

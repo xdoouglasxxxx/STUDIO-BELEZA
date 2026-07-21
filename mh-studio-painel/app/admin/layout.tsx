@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase"
 import { useRouter, usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import { LayoutDashboard, Calendar, Images, Users, Sparkles, LogOut, User, Menu, X } from "lucide-react"
+import { LayoutDashboard, Calendar, Clock, Images, Users, Sparkles, LogOut, User, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 const menuItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Agenda", href: "/admin/agenda", icon: Calendar },
+  { label: "Horários", href: "/admin/horarios", icon: Clock },
   { label: "Galeria", href: "/admin/galeria", icon: Images },
   { label: "Clientes", href: "/admin/clientes", icon: Users },
   { label: "Serviços", href: "/admin/servicos", icon: Sparkles },
