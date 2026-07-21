@@ -72,6 +72,7 @@ export default function App() {
   const [studio, setStudio] = useState(STUDIO_FALLBACK)
   const [servicos, setServicos] = useState(SERVICOS_FALLBACK)
   const [fotos, setFotos] = useState([])
+  const [verTudo, setVerTudo] = useState(false)
   const [servico, setServico] = useState(SERVICOS_FALLBACK[0])
   const [diaIdx, setDiaIdx] = useState(0)
   const [horario, setHorario] = useState(null)
@@ -113,7 +114,7 @@ export default function App() {
     if (!supabase) return
     supabase
       .from('studios')
-      .select('name, phone, address, working_hours, slot_interval_minutes')
+      .select('name, phone, address, instagram, working_hours, slot_interval_minutes')
       .limit(1)
       .maybeSingle()
       .then(({ data }) => { if (data) setStudio(data) })
@@ -132,7 +133,7 @@ export default function App() {
       .from('gallery')
       .select('id, image_url, service_type')
       .order('created_at', { ascending: false })
-      .limit(6)
+      .limit(30)
       .then(({ data }) => { if (data && data.length > 0) setFotos(data) })
   }, [])
 
@@ -330,11 +331,18 @@ export default function App() {
               <div className="mt-7">
                 <div className="px-6 flex items-center justify-between mb-3">
                   <h2 className="serif text-[18px] font-semibold text-[#0a1f44]">Galeria Inspirations</h2>
-                  <span className="text-[11px] tracking-widest text-[#c9a86c] font-semibold">VER TUDO</span>
+                  {fotos.length > 6 && (
+                    <button
+                      onClick={() => setVerTudo((v) => !v)}
+                      className="text-[11px] tracking-widest text-[#c9a86c] font-semibold active:opacity-70"
+                    >
+                      {verTudo ? 'VER MENOS' : `VER TUDO (${fotos.length})`}
+                    </button>
+                  )}
                 </div>
                 <div className="px-4 grid grid-cols-3 gap-2.5">
                   {fotos.length > 0
-                    ? fotos.map((f) => (
+                    ? (verTudo ? fotos : fotos.slice(0, 6)).map((f) => (
                         <div key={f.id}>
                           <div className="aspect-[3/4] rounded-[20px] overflow-hidden relative border border-white shadow-[0_6px_20px_rgba(10,31,68,0.08)] bg-[#fdf8f0]">
                             <img
@@ -722,7 +730,7 @@ export default function App() {
                 </a>
 
                 <a
-                  href={`https://instagram.com/${INSTAGRAM}`}
+                  href={`https://instagram.com/${(studio.instagram || INSTAGRAM).replace("@", "").trim()}`}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full h-14 rounded-[16px] bg-white border border-[#f0e6d3] flex items-center gap-4 px-4 navy-shadow active:scale-[0.99] transition-transform"
@@ -731,7 +739,7 @@ export default function App() {
                     <Instagram className="w-5 h-5 text-[#0a1f44]" />
                   </div>
                   <div className="flex-1 text-left">
-                    <div className="text-[13px] font-semibold text-[#0a1f44]">@{INSTAGRAM}</div>
+                    <div className="text-[13px] font-semibold text-[#0a1f44]">@{(studio.instagram || INSTAGRAM).replace("@", "").trim()}</div>
                     <div className="text-[11px] text-[#0a1f44]/60">Portfólio atualizado diariamente</div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-[#0a1f44]/30" />
