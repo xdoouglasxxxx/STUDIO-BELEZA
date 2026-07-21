@@ -14,6 +14,16 @@ const STUDIO_FALLBACK = {
   name: 'Myleine Hofmann Manicure',
   phone: '5541996922171',
   address: 'Rua Eduardo Pinto da Rocha 4001',
+  slot_interval_minutes: 30,
+  working_hours: {
+    0: null,
+    1: { start: '09:00', end: '19:00' },
+    2: { start: '09:00', end: '19:00' },
+    3: { start: '09:00', end: '19:00' },
+    4: { start: '09:00', end: '19:00' },
+    5: { start: '09:00', end: '19:00' },
+    6: { start: '09:00', end: '17:00' },
+  },
 }
 const INSTAGRAM = 'myleinehofmann.nails'
 
@@ -22,8 +32,6 @@ const SERVICOS_FALLBACK = [
   { id: null, name: 'Manicure e Pedicure Tradicional', price: 60, duration_minutes: 90, category: 'tradicional', description: 'Cuidado completo, esmaltação perfeita' },
   { id: null, name: 'Alongamento F1', price: 110, duration_minutes: 120, category: 'alongamento', description: 'Mais autoestima e segurança para suas mãos' },
 ]
-
-const HORARIOS = ['09:00', '10:30', '13:00', '14:30', '16:00', '17:30']
 
 const GALERIA = [
   { id: 1, style: 'French Rosé', grad: 'linear-gradient(135deg, #fff1f2 0%, #fecdd3 100%)' },
@@ -63,6 +71,7 @@ export default function App() {
   const [tab, setTab] = useState('inicio')
   const [studio, setStudio] = useState(STUDIO_FALLBACK)
   const [servicos, setServicos] = useState(SERVICOS_FALLBACK)
+  const [fotos, setFotos] = useState([])
   const [servico, setServico] = useState(SERVICOS_FALLBACK[0])
   const [diaIdx, setDiaIdx] = useState(0)
   const [horario, setHorario] = useState(null)
@@ -104,7 +113,7 @@ export default function App() {
     if (!supabase) return
     supabase
       .from('studios')
-      .select('name, phone, address')
+      .select('name, phone, address, working_hours, slot_interval_minutes')
       .limit(1)
       .maybeSingle()
       .then(({ data }) => { if (data) setStudio(data) })
@@ -119,6 +128,12 @@ export default function App() {
           setServico(data[0])
         }
       })
+    supabase
+      .from('gallery')
+      .select('id, image_url, service_type')
+      .order('created_at', { ascending: false })
+      .limit(6)
+      .then(({ data }) => { if (data && data.length > 0) setFotos(data) })
   }, [])
 
   // Busca horários já reservados do dia escolhido
@@ -133,20 +148,40 @@ export default function App() {
       .eq('date', diaSel.iso)
       .then(({ data, error }) => {
         if (!ativo) return
-        if (error || !data) { setOcupados([]); setCarregandoHorarios(false); return }
-        const bloqueados = HORARIOS.filter((h) => {
-          const t = toMin(h)
-          return data.some(
-            (r) => t >= toMin(r.start_time.slice(0, 5)) && t < toMin(r.end_time.slice(0, 5)),
-          )
-        })
-        setOcupados(bloqueados)
+        setOcupados(
+          error || !data
+            ? []
+            : data.map((r) => ({ ini: toMin(r.start_time.slice(0, 5)), fim: toMin(r.end_time.slice(0, 5)) })),
+        )
         setCarregandoHorarios(false)
       })
     return () => { ativo = false }
   }, [diaSel.iso])
 
-  const livres = HORARIOS.filter((h) => !ocupados.includes(h))
+  // Expediente do dia escolhido (0=dom ... 6=sáb); null = fechado
+  const expediente = (studio.working_hours || STUDIO_FALLBACK.working_hours)[String(diaSel.date.getDay())] || null
+  const intervalo = studio.slot_interval_minutes || 30
+  const duracao = servico.duration_minutes || 60
+
+  // Gera os horários do dia: dentro do expediente, cabendo a duração do
+  // serviço, sem horários passados e sem conflito com outros atendimentos
+  const slots = useMemo(() => {
+    if (!expediente) return []
+    const abre = toMin(expediente.start)
+    const fecha = toMin(expediente.end)
+    const agora = new Date()
+    const ehHoje = diaSel.iso === toISO(agora)
+    const agoraMin = agora.getHours() * 60 + agora.getMinutes()
+    const out = []
+    for (let t = abre; t + duracao <= fecha; t += intervalo) {
+      if (ehHoje && t <= agoraMin) continue // regra 1: passado some
+      const conflito = ocupados.some((o) => t < o.fim && t + duracao > o.ini) // regra 4: bloqueio pela duração
+      out.push({ h: `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`, ocupado: conflito })
+    }
+    return out
+  }, [expediente, intervalo, duracao, ocupados, diaSel.iso])
+
+  const livres = slots.filter((s) => !s.ocupado)
   const waNumber = (studio.phone || STUDIO_FALLBACK.phone).replace(/\D/g, '')
 
   const linkWhats = `https://wa.me/${waNumber}?text=${encodeURIComponent(
@@ -173,9 +208,16 @@ export default function App() {
     setEnviando(false)
 
     if (error) {
-      if (error.message.includes('horario_ocupado')) {
+      const m = error.message || ''
+      if (m.includes('horario_ocupado')) {
         setErro('Ops! Esse horário acabou de ser reservado. Escolha outro, por favor.')
-        setOcupados((prev) => [...prev, horario])
+        setOcupados((prev) => [...prev, { ini: toMin(horario), fim: toMin(horario) + duracao }])
+        setHorario(null)
+      } else if (m.includes('horario_passado') || m.includes('data_passada')) {
+        setErro('Esse horário já passou. Escolha um horário futuro, por favor.')
+        setHorario(null)
+      } else if (m.includes('dia_fechado') || m.includes('fora_do_horario')) {
+        setErro('O studio não atende nesse dia/horário. Escolha outro, por favor.')
         setHorario(null)
       } else {
         setErro('Não foi possível enviar. Tente novamente ou agende pelo WhatsApp.')
@@ -291,7 +333,26 @@ export default function App() {
                   <span className="text-[11px] tracking-widest text-[#c9a86c] font-semibold">VER TUDO</span>
                 </div>
                 <div className="px-4 grid grid-cols-3 gap-2.5">
-                  {GALERIA.map((f) => (
+                  {fotos.length > 0
+                    ? fotos.map((f) => (
+                        <div key={f.id}>
+                          <div className="aspect-[3/4] rounded-[20px] overflow-hidden relative border border-white shadow-[0_6px_20px_rgba(10,31,68,0.08)] bg-[#fdf8f0]">
+                            <img
+                              src={f.image_url}
+                              alt={f.service_type || 'Trabalho da Myleine'}
+                              loading="lazy"
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
+                            <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-white/80 backdrop-blur flex items-center justify-center">
+                              <HeartHandshake className="w-3 h-3 text-[#c9a86c]" />
+                            </div>
+                          </div>
+                          {f.service_type && (
+                            <div className="mt-1.5 px-1 text-[10px] font-bold tracking-wide text-[#0a1f44]">{f.service_type}</div>
+                          )}
+                        </div>
+                      ))
+                    : GALERIA.map((f) => (
                     <div key={f.id}>
                       <div className="aspect-[3/4] rounded-[20px] overflow-hidden relative border border-white shadow-[0_6px_20px_rgba(10,31,68,0.08)]">
                         <div className="absolute inset-0" style={{ background: f.grad }} />
@@ -421,21 +482,26 @@ export default function App() {
                   <div className="mt-6">
                     <h3 className="text-[13px] font-bold tracking-wide text-[#0a1f44] mb-3">Escolha o dia</h3>
                     <div className="grid grid-cols-7 gap-2">
-                      {dias.map((d, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setDiaIdx(i)}
-                          className={`aspect-[0.9] rounded-[16px] flex flex-col items-center justify-center gap-1 border transition-all ${
-                            diaIdx === i
-                              ? 'bg-[#0a1f44] border-[#0a1f44] text-white shadow-[0_8px_20px_rgba(10,31,68,0.25)]'
-                              : 'bg-white border-[#f0e6d3] text-[#0a1f44] hover:border-[#c9a86c]/40'
-                          }`}
-                        >
-                          <span className={`text-[10px] uppercase tracking-wide ${diaIdx === i ? 'text-white/60' : 'text-[#0a1f44]/50'}`}>{d.day}</span>
-                          <span className="text-[16px] font-bold">{d.num}</span>
-                          {d.isToday && diaIdx !== i && <span className="w-1 h-1 rounded-full bg-[#c9a86c]" />}
-                        </button>
-                      ))}
+                      {dias.map((d, i) => {
+                        const fechado = !(studio.working_hours || STUDIO_FALLBACK.working_hours)[String(d.date.getDay())]
+                        return (
+                          <button
+                            key={i}
+                            onClick={() => setDiaIdx(i)}
+                            className={`aspect-[0.9] rounded-[16px] flex flex-col items-center justify-center gap-1 border transition-all ${
+                              diaIdx === i
+                                ? 'bg-[#0a1f44] border-[#0a1f44] text-white shadow-[0_8px_20px_rgba(10,31,68,0.25)]'
+                                : fechado
+                                  ? 'bg-[#f5f5f5] border-[#eee] text-[#0a1f44]/30'
+                                  : 'bg-white border-[#f0e6d3] text-[#0a1f44] hover:border-[#c9a86c]/40'
+                            }`}
+                          >
+                            <span className={`text-[10px] uppercase tracking-wide ${diaIdx === i ? 'text-white/60' : fechado ? 'text-[#0a1f44]/30' : 'text-[#0a1f44]/50'}`}>{d.day}</span>
+                            <span className="text-[16px] font-bold">{d.num}</span>
+                            {d.isToday && diaIdx !== i && <span className="w-1 h-1 rounded-full bg-[#c9a86c]" />}
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
 
@@ -445,35 +511,40 @@ export default function App() {
                       <div className="h-12 flex items-center gap-2 text-[12px] text-[#0a1f44]/60">
                         <Loader2 className="w-4 h-4 animate-spin text-[#c9a86c]" /> Verificando agenda...
                       </div>
+                    ) : !expediente ? (
+                      <div className="rounded-[14px] bg-[#fdf8f0] border border-[#f0e6d3] px-4 py-4 text-[12px] text-[#0a1f44]/70 text-center">
+                        O studio não atende neste dia 💤 Escolha outra data.
+                      </div>
+                    ) : slots.length === 0 ? (
+                      <div className="rounded-[14px] bg-[#fdf8f0] border border-[#f0e6d3] px-4 py-4 text-[12px] text-[#0a1f44]/70 text-center">
+                        Sem horários restantes neste dia — escolha outra data.
+                      </div>
                     ) : (
                       <div className="grid grid-cols-3 gap-2.5">
-                        {HORARIOS.map((h) => {
-                          const ocupado = ocupados.includes(h)
-                          return (
-                            <button
-                              key={h}
-                              disabled={ocupado}
-                              onClick={() => setHorario(h)}
-                              className={`h-12 rounded-[14px] border text-[13px] font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                                ocupado
-                                  ? 'bg-[#f5f5f5] border-[#eee] text-[#0a1f44]/25 line-through cursor-not-allowed'
-                                  : horario === h
-                                    ? 'bg-[#0a1f44] border-[#0a1f44] text-white shadow'
-                                    : 'bg-white border-[#f0e6d3] text-[#0a1f44] hover:border-[#c9a86c]'
-                              }`}
-                            >
-                              {horario === h && <Check className="w-3.5 h-3.5" />}
-                              {h}
-                            </button>
-                          )
-                        })}
+                        {slots.map(({ h, ocupado }) => (
+                          <button
+                            key={h}
+                            disabled={ocupado}
+                            onClick={() => setHorario(h)}
+                            className={`h-12 rounded-[14px] border text-[13px] font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                              ocupado
+                                ? 'bg-[#f5f5f5] border-[#eee] text-[#0a1f44]/25 line-through cursor-not-allowed'
+                                : horario === h
+                                  ? 'bg-[#0a1f44] border-[#0a1f44] text-white shadow'
+                                  : 'bg-white border-[#f0e6d3] text-[#0a1f44] hover:border-[#c9a86c]'
+                            }`}
+                          >
+                            {horario === h && <Check className="w-3.5 h-3.5" />}
+                            {h}
+                          </button>
+                        ))}
                       </div>
                     )}
                     <div className="mt-3 flex items-center gap-2 text-[11px] text-[#0a1f44]/50">
                       <div className="w-2 h-2 rounded-full bg-emerald-500" />
                       {livres.length > 0
-                        ? `${livres.length} ${livres.length === 1 ? 'horário livre' : 'horários livres'} • Atendimento pontual`
-                        : 'Agenda cheia neste dia — escolha outra data'}
+                        ? `${livres.length} ${livres.length === 1 ? 'horário livre' : 'horários livres'} para ${duracao} min • Atendimento pontual`
+                        : 'Nenhum horário livre neste dia'}
                     </div>
                   </div>
 
@@ -616,6 +687,24 @@ export default function App() {
               </div>
 
               <div className="mt-5 space-y-3">
+                <div className="rounded-[20px] bg-white border border-[#f0e6d3] overflow-hidden navy-shadow">
+                  <iframe
+                    title="Localização do studio"
+                    src={`https://maps.google.com/maps?q=${encodeURIComponent(studio.address || STUDIO_FALLBACK.address)}&z=16&output=embed`}
+                    className="w-full h-[160px] border-0"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(studio.address || STUDIO_FALLBACK.address)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="h-12 flex items-center justify-center gap-2 text-[12px] font-bold tracking-wide text-[#0a1f44] active:bg-[#fdf8f0]"
+                  >
+                    <MapPin className="w-4 h-4 text-[#c9a86c]" /> ABRIR NO GOOGLE MAPS
+                  </a>
+                </div>
+
                 <a
                   href={`https://wa.me/${waNumber}`}
                   target="_blank"
@@ -651,18 +740,19 @@ export default function App() {
                 <div className="rounded-[20px] bg-white border border-[#f0e6d3] p-5 navy-shadow">
                   <div className="text-[12px] font-bold tracking-widest text-[#0a1f44]">HORÁRIO DE ATENDIMENTO</div>
                   <div className="mt-3 space-y-2 text-[13px]">
-                    <div className="flex justify-between">
-                      <span className="text-[#0a1f44]/60">Segunda - Sexta</span>
-                      <span className="font-semibold text-[#0a1f44]">09:00 - 19:00</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#0a1f44]/60">Sábado</span>
-                      <span className="font-semibold text-[#0a1f44]">09:00 - 17:00</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#0a1f44]/60">Domingo</span>
-                      <span className="font-semibold text-[#c9a86c]">Fechado</span>
-                    </div>
+                    {['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map((nomeDia, i) => {
+                      const cfg = (studio.working_hours || STUDIO_FALLBACK.working_hours)[String(i)]
+                      return (
+                        <div key={i} className="flex justify-between">
+                          <span className="text-[#0a1f44]/60">{nomeDia}</span>
+                          {cfg ? (
+                            <span className="font-semibold text-[#0a1f44]">{cfg.start} - {cfg.end}</span>
+                          ) : (
+                            <span className="font-semibold text-[#c9a86c]">Fechado</span>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
 
