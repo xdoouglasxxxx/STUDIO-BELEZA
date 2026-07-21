@@ -1,4 +1,4 @@
-﻿-- SQL do Supabase (Copie e cole no SQL Editor do Supabase)
+-- SQL do Supabase (Copie e cole no SQL Editor do Supabase)
 create extension if not exists "uuid-ossp";
 
 create table if not exists studios (
