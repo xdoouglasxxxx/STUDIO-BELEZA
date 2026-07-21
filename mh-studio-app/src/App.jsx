@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   CalendarDays, Check, ChevronRight, Clock3, Crown, Gem, HeartHandshake,
-  House, Instagram, Loader2, MapPin, MessageCircle, Scissors, ShieldCheck,
+  Home, Instagram, Loader2, MapPin, MessageCircle, Scissors, ShieldCheck,
   Sparkles, Star, User,
 } from 'lucide-react'
 import { supabase } from './lib/supabase'
@@ -186,7 +186,7 @@ export default function App() {
   }
 
   const NAV = [
-    { id: 'inicio', label: 'Início', icon: House },
+    { id: 'inicio', label: 'Início', icon: Home },
     { id: 'servicos', label: 'Serviços', icon: Scissors },
     { id: 'agendar', label: 'Agendar', icon: CalendarDays },
     { id: 'contato', label: 'Contato', icon: User },
