@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { font-family: 'Inter', sans-serif; }
+.serif { font-family: 'Cormorant Garamond', serif; }
+
+.gold-gradient { background: linear-gradient(135deg, #c9a86c 0%, #e8d5a3 45%, #c9a86c 100%); }
+.gold-text {
+  background: linear-gradient(135deg, #c9a86c 0%, #e8d5a3 50%, #c9a86c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.gold-border { border: 1px solid rgba(201, 168, 108, 0.4); }
+.navy-shadow { box-shadow: 0 12px 32px rgba(10, 31, 68, 0.12); }
+
+@keyframes sparkle {
+  0%, 100% { opacity: 0; transform: scale(0.5) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1) rotate(180deg); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.sparkle { animation: sparkle 2.5s ease-in-out infinite; }
+.shimmer {
+  background: linear-gradient(90deg, #c9a86c 0%, #fff7e0 50%, #c9a86c 100%);
+  background-size: 200% auto;
+  animation: shimmer 3s linear infinite;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sparkle, .shimmer, .animate-pulse { animation: none; }
+}
